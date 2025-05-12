@@ -1,70 +1,81 @@
-# Getting Started with Create React App
+# Claude Chatbot (React + FastAPI)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A customizable chatbot application using Anthropic's Claude API, with a React frontend and Python FastAPI backend.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Project Structure
 
-### `npm start`
+- `src/` — React frontend (Create React App)
+- `api/` — Python FastAPI backend
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Local Development
 
-### `npm test`
+### 1. Frontend (React)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+```bash
+cd /path/to/your/project
+npm install
+npm start
+```
+- Runs at [http://localhost:3000](http://localhost:3000)
 
-### `npm run build`
+### 2. Backend (FastAPI)
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```bash
+cd /path/to/your/project
+python3 -m venv venv
+source venv/bin/activate
+pip install -r api/requirements.txt
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Create a file `api/.env` and add your Anthropic API key:
+```
+ANTHROPIC_API_KEY=sk-...your-key-here...
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Start the backend:
+```bash
+uvicorn api.chat:app --reload
+```
+- Runs at [http://localhost:8000](http://localhost:8000)
 
-### `npm run eject`
+---
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Deployment (Vercel Example)
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 1. Deploy Frontend
+- Push your code to GitHub.
+- Import your repo in [Vercel](https://vercel.com/).
+- Set the root directory to your project root (not `src/`).
+- Vercel will auto-detect and deploy the React app.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### 2. Deploy Backend
+- In Vercel, add a new Python serverless function for your FastAPI backend (see Vercel docs for Python API setup).
+- Set the `ANTHROPIC_API_KEY` as an environment variable in Vercel's dashboard.
+- Make sure your API endpoints are accessible (e.g., `/api/chat`).
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+---
 
-## Learn More
+## Environment Variables
+- Never commit your `.env` file or API keys to git.
+- Use Vercel's environment variable settings for production.
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+---
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Security Notes
+- `.env` and `api/.env` are in `.gitignore` by default.
+- Never share your API key publicly.
 
-### Code Splitting
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Customization
+- You can modify the backend to add a system prompt or other logic as needed.
+- The frontend is easily customizable for your brand or use case.
 
-### Analyzing the Bundle Size
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## License
+MIT
