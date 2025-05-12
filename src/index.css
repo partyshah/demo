@@ -1,0 +1,154 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  background: #f4f4f4;
+}
+
+.app-header {
+  background: #22223b;
+  color: #fff;
+  padding: 1rem;
+  text-align: center;
+}
+
+.app-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.app-main {
+  max-width: 700px;
+  margin: 2rem auto;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  padding: 2rem;
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 60vh;
+  margin-bottom: 2rem;
+}
+
+.message-list-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 1rem;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.message-row {
+  display: flex;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.ai {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: 70%;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  font-size: 1rem;
+}
+
+.user-bubble {
+  background: #4f8cff;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.ai-bubble {
+  background: #e9ecef;
+  color: #22223b;
+  border-bottom-left-radius: 4px;
+}
+
+.message-text {
+  margin: 0;
+}
+
+.chat-input-wrapper {
+  margin-top: 1rem;
+}
+
+.chat-input-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.send-button {
+  padding: 0.5rem 1.5rem;
+  background: #4f8cff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.send-button:hover {
+  background: #2563eb;
+}
+
+.system-prompt-editor {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.system-prompt-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+}
+
+.system-prompt-textarea {
+  width: 100%;
+  height: 80px;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  resize: vertical;
+}
+
+.system-prompt-save {
+  padding: 0.5rem 1.5rem;
+  background: #4f8cff;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.system-prompt-save:hover {
+  background: #2563eb;
+}
