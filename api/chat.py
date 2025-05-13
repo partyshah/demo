@@ -62,43 +62,77 @@ def init_dependencies():
             
     return True
 
+def simple_chat_handler(messages, session_id=None):
+    """
+    A simplified handler for chat requests that doesn't rely on async/await.
+    This is easier to call from a simple Lambda handler.
+    """
+    try:
+        # Initialize dependencies
+        if not init_dependencies():
+            return {"error": "Failed to initialize dependencies"}, 500
+            
+        # Import session initializer
+        try:
+            from backend.src.langgraph_module.main import initialize_session
+        except ImportError as e:
+            print(f"Error importing initialize_session: {str(e)}")
+            return {"error": f"Import error: {str(e)}"}, 500
+            
+        # Get or create session state
+        if session_id and session_id in active_sessions:
+            state = active_sessions[session_id]
+        else:
+            state = initialize_session()
+            if session_id:
+                active_sessions[session_id] = state
+        
+        # Make sure we have messages
+        if not messages or len(messages) == 0:
+            return {"error": "No messages provided"}, 400
+        
+        latest_message = messages[-1]
+        
+        if latest_message.get("role") != "user":
+            return {"error": "Expected the last message to be from the user"}, 400
+        
+        # Format messages for the graph
+        state["messages"] = messages
+        state["current_input"] = latest_message.get("content", "")
+        
+        # Process with the graph
+        updated_state = compiled_graph.invoke(state)
+        
+        # Update session if needed
+        if session_id:
+            active_sessions[session_id] = updated_state
+    
+        # Get the latest assistant message
+        latest_assistant_message = updated_state["messages"][-1].get("content", "")
+        
+        return latest_assistant_message, 200
+    except Exception as e:
+        # Log the detailed error
+        error_type = type(e).__name__
+        error_message = str(e)
+        print(f"Error in chat_handler: {error_type} - {error_message}")
+        
+        # Return a fallback message
+        return {"error": f"{error_type}: {error_message}"}, 500
+
 @app.post("/api/chat")
 async def chat_endpoint(chat_request: ChatRequest):
     try:
-        # Initialize dependencies on first request
-        if not init_dependencies():
-            return JSONResponse(
-                status_code=500,
-                content={"error": "Failed to initialize dependencies"},
-            )
-            
-        # Import the main module
-        from backend.src.langgraph_module.main import initialize_session
+        # Convert the request to a list of messages
+        messages = [{"role": m.role, "content": m.content} for m in chat_request.messages]
         
-        if chat_request.sessionId and chat_request.sessionId in active_sessions:
-            state = active_sessions[chat_request.sessionId]
-        else:
-            state = initialize_session()
-            if chat_request.sessionId:
-                active_sessions[chat_request.sessionId] = state
+        # Call the simplified handler
+        result, status_code = simple_chat_handler(messages, chat_request.sessionId)
         
-        latest_message = chat_request.messages[-1]
-        
-        if latest_message.role != "user":
-            return {"role": "assistant", "content": "Expected the last message to be from the user."}
-        
-        state["messages"] = [{"role": m.role, "content": m.content} for m in chat_request.messages]
-        
-        state["current_input"] = latest_message.content
-        
-        updated_state = compiled_graph.invoke(state)
-        
-        if chat_request.sessionId:
-            active_sessions[chat_request.sessionId] = updated_state
-    
-        latest_assistant_message = updated_state["messages"][-1]["content"]
-        
-        return latest_assistant_message
+        # Return the result
+        if status_code != 200:
+            return JSONResponse(status_code=status_code, content=result)
+        return result
     except Exception as e:
         # Log the detailed error
         error_type = type(e).__name__
