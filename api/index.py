@@ -5,9 +5,13 @@ import sys
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
-# Add our app paths
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from api import chat
+# Add the current directory to sys.path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+sys.path.append(root_dir)
+
+# Import the chat module directly
+from api.chat import app as chat_app, chat_endpoint
 
 app = FastAPI()
 
@@ -24,8 +28,8 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok"}
 
-# Add routes from chat module
-app.include_router(chat.app)
+# Mount the chat app
+app.post("/api/chat")(chat_endpoint)
 
 # Vercel serverless handler
 handler = Mangum(app) 
