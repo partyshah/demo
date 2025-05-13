@@ -5,14 +5,6 @@ import sys
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
-# Add the current directory to sys.path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.dirname(current_dir)
-sys.path.append(root_dir)
-
-# Import the chat module directly
-from api.chat import app as chat_app, chat_endpoint
-
 app = FastAPI()
 
 # Add CORS middleware
@@ -28,8 +20,48 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok"}
 
-# Mount the chat app
-app.post("/api/chat")(chat_endpoint)
+@app.get("/api/debug")
+async def debug_info():
+    """Endpoint to help debug issues with the deployment"""
+    debug_info = {
+        "python_version": sys.version,
+        "sys_path": sys.path,
+        "env_vars": {k: "***" if k.lower().endswith("key") else v 
+                     for k, v in os.environ.items()},
+        "cwd": os.getcwd(),
+        "dir_contents": os.listdir(os.getcwd())
+    }
+    return debug_info
+
+@app.post("/api/chat")
+async def api_chat_handler(request: Request):
+    # Get the request body
+    try:
+        body = await request.json()
+        
+        # Import the chat handler here to avoid circular imports
+        import os
+        import sys
+        
+        # Add the parent directory to the path
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        sys.path.append(parent_dir)
+        
+        # Now we can import our handler
+        try:
+            from api.chat import handler as chat_handler
+            # Call the handler function
+            return await chat_handler(request)
+        except ImportError as ie:
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"Import error: {str(ie)}", "sys_path": sys.path},
+            )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "type": str(type(e))},
+        )
 
 # Vercel serverless handler
 handler = Mangum(app) 
