@@ -24,7 +24,7 @@ Completed milestones: {completed_milestones}
 Remaining milestones: {remaining_milestones}
 Identified milestones: {identified_milestones}
 
-If the current milestone is None, then prompt the USER to discuss the next identified milestone. 
+If the current milestone is None and there ARE identified milestones, then prompt the USER if they would like to start discussing the next identified milestone. 
 If the current milestone is None and there are no identified milestones, then ask the student what they think we should build next. Ask the students questions such that it leads them towards remaining milestones. 
 If completed milestone does not fulfill the prerequisites for the current milestone (as shown in the Curriculum), then guide the student towards the next pre-requisite milestone. 
 
@@ -157,8 +157,26 @@ If we are in the "DISCUSSION PHASE", move onto the CODING PHASE when
 If we are in the "CODING PHASE", move onto the DISCUSSION PHASE when
 - the student has successfully completed all coding tasks related to a milestone component.
 
-Use your best judgement to decide whether the lesson should switch or stay the same. 
+Use your best judgement to decide whether the lesson should switch or stay the same and extract additional information. 
 Format your response as follows:
+{format_instructions}
+            """
+        ),
+        ("human", "Here is the chat history: {input}"),
+    ]
+)
+
+extraction_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """
+You have been interacting with a student who is learning to code. Your task is to extract the following information from the chat history given background information about the curriculum to help track the state of the student's learning based on the most recent messages. 
+
+Here is some background on the project that we will be implementing:
+Curriculum = {curriculum}
+
+Only return a JSON. Format your response as follows:
 {format_instructions}
             """
         ),

@@ -27,40 +27,34 @@ def build_graph():
     
     return workflow
 
-# Initialize session state
-def initialize_session()->TutoringSessionState:
+def initialize_session() -> TutoringSessionState:
     """Initialize a new tutoring session with the given curriculum."""
-    # Mock curriculum for tic-tac-toe
     tic_tac_toe_curriculum = create_tictactoe_curriculum()
     
-    # Initial student state
     student = {
         "background": "A high school student who is learning Python for the first time. They have some experience with Java. They have take a introduction course to Computer Science so they understand the basics of programming like loops, conditionals, variables, and data structures.",
     }
     
     # Initial session state
     return {
-        "phase": "DISCUSSION",
+        'current_phase': "DISCUSSION",
+        'current_milestone': None,
         "student": student,
-        "messages": [],  # Initialize with empty messages list
-        "curriculum": tic_tac_toe_curriculum,
-        "curriculum_completed": [],
-        "curriculum_remaining": tic_tac_toe_curriculum.milestones.copy(),
-        "curriculum_identified": [],  # Add this missing field
-        "current_input": None  # Initialize with no input
+        "messages": [],
+        "curriculum": tic_tac_toe_curriculum.model_dump(),  
+        "milestones_completed": [],
+        "milestones_remaining": [m.id for m in tic_tac_toe_curriculum.milestones], 
+        "milestones_identified": [],
+        "current_input": None
     }
-# Example usage in a simple CLI app
+
 def run_tutoring_session():
-    # Build the graph
     workflow = build_graph()
     compiled_graph = workflow.compile()
     
-    # Initialize session
     state = initialize_session()
     
     print("Tutoring Session Started (type 'exit' to quit)")
-    print(f"Current Phase: {state['phase']}")
-    print(f"Current Curriculum: {state['curriculum_remaining'][0]}")
     
     from pprint import pprint
     while True:
@@ -79,10 +73,10 @@ def run_tutoring_session():
         print(f"\nTutor: {last_message}")
 
         # Show current state information
-        print(f"\n[DEBUG]\nCurrent Phase: {state['phase']}")
-        if state['curriculum_remaining']:
-            pprint(f"Milestones remaining: {state['curriculum_remaining']}")
-        print(f"Completed: {state['curriculum_completed']}")
+        print(f"\n[DEBUG]\nCurrent Phase: {state['current_phase']}")
+        if state['milestones_remaining']:
+            pprint(f"Milestones remaining: {state['milestones_remaining']}")
+        print(f"Completed: {state['milestones_completed']}")
 
 if __name__ == "__main__":
     run_tutoring_session()
