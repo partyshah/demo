@@ -25,10 +25,10 @@ npm start
 ### 2. Backend (FastAPI)
 
 ```bash
-cd /path/to/your/project
+cd demo/backend
 python3 -m venv venv
 source venv/bin/activate
-pip install -r api/requirements.txt
+pip install -r requirements.txt
 ```
 
 Create a file `api/.env` and add your Anthropic API key:
@@ -38,7 +38,7 @@ ANTHROPIC_API_KEY=sk-...your-key-here...
 
 Start the backend:
 ```bash
-uvicorn api.chat:app --reload
+python -m uvicorn src.api.chat:app --reload
 ```
 - Runs at [http://localhost:8000](http://localhost:8000)
 
