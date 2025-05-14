@@ -8,27 +8,52 @@
 # testing
 /coverage
 
+# next.js
+/.next/
+/out/
+
+# python
+venv/
+.env
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
 # production
 /build
 
 # misc
 .DS_Store
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+*.pem
 
-# Ignore all .env files
-.env
-api/.env
-
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Ignore pycache
-__pycache__
+# local env files
+.env*.local
+.env.development
+.env.test
+.env.production
 
-# Ignore venv
-venv/
-.venv/
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# Logs
+logs
+*.log

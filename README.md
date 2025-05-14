@@ -1,81 +1,78 @@
-# Claude Chatbot (React + FastAPI)
+# Next.js + FastAPI Vercel App
 
-A customizable chatbot application using Anthropic's Claude API, with a React frontend and Python FastAPI backend.
+A modern web application with a Next.js frontend and FastAPI backend, ready for Vercel deployment. This application demonstrates streaming chat completions using the [Data Stream Protocol](https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol#data-stream-protocol) and the [useChat](https://sdk.vercel.ai/docs/ai-sdk-ui/chatbot#chatbot) hook.
 
----
+## Tech Stack
 
-## Project Structure
+- **Frontend**: Next.js 13, TypeScript, Tailwind CSS
+- **Backend**: FastAPI (Python)
+- **AI Integration**: AI SDK, LangChain, LangGraph
+- **Deployment**: Vercel
 
-- `src/` — React frontend (Create React App)
-- `api/` — Python FastAPI backend
+## Features
 
----
+- Real-time streaming of AI responses
+- Modern UI with Tailwind CSS
+- Type-safe API calls with TypeScript
+- Serverless deployment on Vercel
 
 ## Local Development
 
-### 1. Frontend (React)
+### Prerequisites
 
-```bash
-cd /path/to/your/project
-npm install
-npm start
-```
-- Runs at [http://localhost:3000](http://localhost:3000)
+- Node.js 16+ and npm/pnpm
+- Python 3.11+
+- API keys from your AI provider(s) (e.g., OpenAI, Anthropic)
 
-### 2. Backend (FastAPI)
+### Setup
 
-```bash
-cd demo/backend
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/your-repo-name.git
+   cd your-repo-name
+   ```
 
-Create a file `api/.env` and add your Anthropic API key:
-```
-ANTHROPIC_API_KEY=sk-...your-key-here...
-```
+2. Install Node.js dependencies:
+   ```bash
+   npm install
+   ```
 
-Start the backend:
-```bash
-python -m uvicorn src.api.chat:app --reload
-```
-- Runs at [http://localhost:8000](http://localhost:8000)
+3. Set up Python environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate   # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
 
----
+4. Set up environment variables:
+   ```bash
+   cp .env.example .env.local  # Create .env file based on example
+   # Edit .env with your API keys
+   ```
 
-## Deployment (Vercel Example)
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-### 1. Deploy Frontend
-- Push your code to GitHub.
-- Import your repo in [Vercel](https://vercel.com/).
-- Set the root directory to your project root (not `src/`).
-- Vercel will auto-detect and deploy the React app.
+The application will be available at http://localhost:3000.
 
-### 2. Deploy Backend
-- In Vercel, add a new Python serverless function for your FastAPI backend (see Vercel docs for Python API setup).
-- Set the `ANTHROPIC_API_KEY` as an environment variable in Vercel's dashboard.
-- Make sure your API endpoints are accessible (e.g., `/api/chat`).
-
----
 
 ## Environment Variables
-- Never commit your `.env` file or API keys to git.
-- Use Vercel's environment variable settings for production.
 
----
+Create a `.env.local` file in the root directory with the following variables:
 
-## Security Notes
-- `.env` and `api/.env` are in `.gitignore` by default.
-- Never share your API key publicly.
+```
+# AI Provider API Keys
+ANTHROPIC_API_KEY=your_anthropic_api_key
 
----
+# Add any other required API keys or configuration
+```
 
-## Customization
-- You can modify the backend to add a system prompt or other logic as needed.
-- The frontend is easily customizable for your brand or use case.
+## Project Structure
 
----
-
-## License
-MIT
+- `/app` - Next.js frontend
+- `/api` - FastAPI backend
+- `/components` - Reusable UI components
+- `/lib` - Shared utilities and types
+- `/public` - Static assets

@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-anthropic
-python-dotenv
-langchain
-langgraph
-langchain-anthropic==0.3.13
