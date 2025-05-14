@@ -31,12 +31,12 @@ export const Overview = () => {
           <h3 className="font-medium mb-2 text">How it works:</h3>
           <ul className="list-disc pl-6 space-y-1">
             <li><span className="font-medium">Learn by doing</span> with guided project-based milestones</li>
-            <li><span className="font-medium">Get personalized guidance</span> when you're stuck</li>
+            <li><span className="font-medium">Get personalized guidance</span> when you&apos;re stuck</li>
           </ul>
         </div>
         
         <p className="italic text-muted-foreground">
-          "“The best way to learn how to write code is to write code.”"
+          &ldquo;The best way to learn how to write code is to write code.&rdquo;
         </p>
       </div>
     </motion.div>
