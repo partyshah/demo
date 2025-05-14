@@ -1,11 +1,11 @@
 {
-  "buildCommand": "pip install -r requirements.txt && next build",
-  "framework": "nextjs",
-  "regions": ["iad1"],
-  "outputDirectory": ".next",
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.11"
-    }
-  }
+  "version": 2,
+  "builds": [
+    { "src": "api/index.py", "use": "@vercel/python" },
+    { "src": "package.json", "use": "@vercel/next" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "api/index.py" },
+    { "src": "/(.*)", "dest": "/$1" }
+  ]
 }
