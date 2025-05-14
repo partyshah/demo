@@ -1,7 +1,11 @@
 {
+  "buildCommand": "pip install -r requirements.txt && next build",
+  "framework": "nextjs",
+  "regions": ["iad1"],
+  "outputDirectory": ".next",
   "functions": {
-    "api/**": {
-      "excludeFiles": "{.next,.git,node_modules}/**"
+    "api/index.py": {
+      "runtime": "python3.11"
     }
   }
 }

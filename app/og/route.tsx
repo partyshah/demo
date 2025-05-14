@@ -29,9 +29,8 @@ export async function GET(request: Request) {
         <img src={imageData} alt="vercel opengraph background" />
         <div tw="flex flex-col absolute h-full w-[750px] justify-center left-[50px] pr-[50px] pt-[116px] pb-[166px]">
           <div
-            tw="text-zinc-50 tracking-tight flex-grow-1 flex flex-col justify-center leading-[1.1]"
+            tw="text-zinc-50 tracking-tight flex-grow-1 flex flex-col justify-center leading-[1.1] text-balance"
             style={{
-              textWrap: "balance",
               fontWeight: 500,
               fontSize: 80,
               color: "black",
