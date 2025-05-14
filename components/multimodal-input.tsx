@@ -21,14 +21,14 @@ import { Textarea } from "./ui/textarea";
 
 const suggestedActions = [
   {
-    title: "What is the weather",
-    label: "in San Francisco?",
-    action: "What is the weather in San Francisco?",
+    title: "Let's get started",
+    label: "I want to learn how to build a tic-tac-toe game.",
+    action: "Let's get started. I want to learn how to build a tic-tac-toe game",
   },
   {
-    title: "How is python useful",
-    label: "for AI engineers?",
-    action: "How is python useful for AI engineers?",
+    title: "Tell me about",
+    label: "your teaching philosophy.",
+    action: "Tell me about your teaching philosophy.",
   },
 ];
 
