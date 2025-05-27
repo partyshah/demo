@@ -19,8 +19,8 @@ from .output_parser import (
 
 # Graph Nodes
 async def process_student_message(state: TutorState) -> TutorState:
-    """Extract information from student message to update state."""
-    writer = get_stream_writer()
+    """Extract information from student message to update state and handle milestone progression."""
+    writer = get_stream_writer() # TODO: remove this
     writer({"status": "Processing student message..."})
     
     message = state["current_input"]
@@ -34,13 +34,67 @@ async def process_student_message(state: TutorState) -> TutorState:
         }
     )
     print(f"LLM API CALL: {response=}")
-    
-    return {
+
+    # --- Milestone progression logic ---
+    # Get all milestone IDs from the curriculum
+    all_milestone_ids = [m['id'] for m in state['curriculum']['milestones']]
+
+    completed = set(state.get('milestones_completed', []))
+    # If the LLM says the current milestone is completed, add it
+    if response.get('milestone_completed', False):
+        current = response['current_milestone']
+        if current and current != 'None':
+            completed.add(current)
+            print(f"[DEBUG] Milestone completed: {current}")
+
+    # Always update remaining milestones
+    remaining = [m for m in all_milestone_ids if m not in completed]
+
+    # Find the next milestone to work on (in curriculum order)
+    next_milestone = remaining[0] if remaining else None
+
+    # Guard: If current milestone is already completed, skip redundant prompt
+    if response.get('milestone_completed', False) and not next_milestone:
+        print("[DEBUG] All milestones completed. No further prompts.")
+        new_state = {
+            **state,
+            "messages": state["messages"] + [{"role": "user", "content": message}],
+            "milestones_identified": response['milestones_identified'],
+            "current_milestone": None,
+            "milestone_feedback": response.get('milestone_feedback', ""),
+            "just_completed_milestone": None,
+            "milestones_completed": list(completed),
+            "milestones_remaining": [],
+            "current_phase": 'DISCUSSION',
+        }
+        return new_state
+
+    new_state = {
         **state,
         "messages": state["messages"] + [{"role": "user", "content": message}],
         "milestones_identified": response['milestones_identified'],
-        "current_milestone": response['current_milestone'],
+        "current_milestone": next_milestone,
+        # Optionally, you can store feedback for tutor use
+        "milestone_feedback": response.get('milestone_feedback', ""),
+        "just_completed_milestone": None
     }
+
+    # Only progress if milestone is completed and there are remaining milestones
+    if response.get('milestone_completed', False):
+        new_state['milestones_completed'] = list(completed)
+        new_state['milestones_remaining'] = remaining
+        new_state['current_milestone'] = next_milestone
+        # Always reset phase to DISCUSSION for new milestone
+        if next_milestone:
+            print(f"[DEBUG] Advancing to next milestone: {next_milestone}, resetting phase to DISCUSSION.")
+            new_state['current_phase'] = 'DISCUSSION'
+        # Track just completed milestone for validation feedback
+        new_state['just_completed_milestone'] = next_milestone
+    else:
+        new_state['just_completed_milestone'] = None
+
+    print(f"[DEBUG] State after processing: milestone={new_state['current_milestone']}, phase={new_state.get('current_phase')}, completed={new_state.get('milestones_completed')}")
+    return new_state
 
 async def router(state: TutorState) -> Dict[str, Any]:
     """Determine whether to continue current phase or transition."""
@@ -90,6 +144,9 @@ async def generate_tutor_message(state: TutorState) -> TutorState:
     """Generate a tutor response based on the current phase, with streaming."""
     writer = get_stream_writer()
     writer({"status": "Generating tutor response..."})
+
+    # Debug log to confirm state before prompt generation
+    print(f"[DEBUG] Generating tutor message for milestone={state['current_milestone']}, phase={state['current_phase']}, completed={state.get('milestones_completed')}")
     
     phase = state['current_phase']
     current_milestone = state["current_milestone"]
@@ -104,7 +161,7 @@ async def generate_tutor_message(state: TutorState) -> TutorState:
             "completed_milestones": state["milestones_completed"],
             "remaining_milestones": state["milestones_remaining"],
             "identified_milestones": state["milestones_identified"],
-            "input": state["current_input"], 
+            "input": state["current_input"], #change this to last 5 messages
         }
     elif phase == "CODING":
         prompt = coding_prompt
@@ -123,8 +180,18 @@ async def generate_tutor_message(state: TutorState) -> TutorState:
         if chunk.content:
             response_content += chunk.content
             writer({"response_chunk": chunk.content})
-    
+
+    # Prepend congratulatory message if a milestone was just completed
     new_state = state.copy()
+    if state.get('just_completed_milestone'):
+        completed_milestone = state['just_completed_milestone']
+        validation_message = (
+            f"🎉 Great job! You've successfully completed the milestone: {completed_milestone}. "
+            "Your code meets the requirements. Let's move on to the next part!\n\n"
+        )
+        response_content = validation_message + response_content
+        new_state['just_completed_milestone'] = None
+
     new_state["response"] = response_content
     new_state["messages"] = state["messages"] + [AIMessage(content=response_content)]
     

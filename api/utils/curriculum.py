@@ -19,7 +19,7 @@ def create_tictactoe_curriculum() -> CurriculumConfig:
             {
                 "id": "m1",
                 "name": "Board Implementation",
-                "description": "Code the game board representation, board initialization with integers labelling the cells, board update, and display functions. Prefer to use a 2D array to represent the board. Display it in a 3x3 grid in terminal console using 5 print statements",
+                "description": "Code the game board representation, board initialization with integers labelling the cells, board update, and display functions. Prefer to use a 2D array to represent the board. Display it in a 3x3 grid in terminal console.",
                 "prerequisites": [],
             },
             {
@@ -32,7 +32,7 @@ def create_tictactoe_curriculum() -> CurriculumConfig:
                 "id": "m3",
                 "name": "Win Condition Implementation",
                 "description": "Code the win condition checks. The game should check if the player has won by getting three in a row, column, or diagonal.",
-                "prerequisites": ["m1"],
+                "prerequisites": ["m1, m2"],
             },
             {
                 "id": "m4",

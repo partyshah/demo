@@ -176,6 +176,11 @@ You have been interacting with a student who is learning to code. Your task is t
 Here is some background on the project that we will be implementing:
 Curriculum = {curriculum}
 
+You must also answer:
+- Has the user completed the current milestone? (milestone_completed: true/false)
+- If not, what is missing or incorrect? (milestone_feedback: string)
+Analyze any code or output provided by the user to determine if the current milestone is complete.
+
 Only return a JSON. Format your response as follows:
 {format_instructions}
             """

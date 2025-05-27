@@ -24,4 +24,10 @@ class ExtractionOutput(BaseModel):
     current_milestone: str = Field(
         description="The current milestone that the student is working on. Use the curriculum to determine the current milestone. The student will say what milestone or component they want to work on next. Return one string such as 'm1' or 'm2' or 'm3' or 'm4' etc based on the curriculum. If the student has not started working on a milestone or this is not being discussed, return 'None'."
     )
+    milestone_completed: bool = Field(
+        description="Whether the student has completed the current milestone. The LLM should analyze the user's code and output and determine if the current milestone is complete."
+    )
+    milestone_feedback: str = Field(
+        description="If the milestone is not completed, provide feedback on what is missing or incorrect. If completed, this can be an empty string."
+    )
 extraction_parser = JsonOutputParser(pydantic_object=ExtractionOutput)
