@@ -46,12 +46,27 @@ async def process_student_message(state: TutorState) -> TutorState:
         if current and current != 'None':
             completed.add(current)
             print(f"[DEBUG] Milestone completed: {current}")
+    # Ensure completed milestones can never be removed
+    # (do not remove any from completed, even if LLM says not complete)
 
     # Always update remaining milestones
     remaining = [m for m in all_milestone_ids if m not in completed]
 
     # Find the next milestone to work on (in curriculum order)
-    next_milestone = remaining[0] if remaining else None
+    next_milestone = None
+    for milestone_id in remaining:
+        milestone = next(m for m in state['curriculum']['milestones'] if m['id'] == milestone_id)
+        if all(prereq in completed for prereq in milestone['prerequisites']):
+            next_milestone = milestone_id
+            break
+
+    # Guard: Never regress to a completed milestone, even if LLM extraction is inconsistent
+    if next_milestone in completed:
+        next_milestone = None
+
+    # Guard: If LLM extraction says current_milestone is completed, do not allow it to be set again
+    if response.get('current_milestone') in completed:
+        response['current_milestone'] = next_milestone
 
     # Guard: If current milestone is already completed, skip redundant prompt
     if response.get('milestone_completed', False) and not next_milestone:
@@ -81,15 +96,21 @@ async def process_student_message(state: TutorState) -> TutorState:
 
     # Only progress if milestone is completed and there are remaining milestones
     if response.get('milestone_completed', False):
-        new_state['milestones_completed'] = list(completed)
+        just_completed = response['current_milestone']
+        # Only add to completed if not already there
+        if just_completed and just_completed not in completed:
+            completed.add(just_completed)
+            new_state['just_completed_milestone'] = just_completed
+        else:
+            new_state['just_completed_milestone'] = None
+        # Store milestones_completed in curriculum order
+        new_state['milestones_completed'] = [m for m in all_milestone_ids if m in completed]
         new_state['milestones_remaining'] = remaining
         new_state['current_milestone'] = next_milestone
         # Always reset phase to DISCUSSION for new milestone
         if next_milestone:
             print(f"[DEBUG] Advancing to next milestone: {next_milestone}, resetting phase to DISCUSSION.")
             new_state['current_phase'] = 'DISCUSSION'
-        # Track just completed milestone for validation feedback
-        new_state['just_completed_milestone'] = next_milestone
     else:
         new_state['just_completed_milestone'] = None
 
@@ -105,7 +126,7 @@ async def router(state: TutorState) -> Dict[str, Any]:
     response = chain.invoke(
         {
             "curriculum": state["curriculum"],
-            "current_milestone": state["milestones_remaining"] if state["milestones_remaining"] else "None",
+            "current_milestone": state["current_milestone"] if state["current_milestone"] else "None",
             'current_phase': state['current_phase'],
             "input": state["messages"],
             "format_instructions": router_parser.get_format_instructions(),
@@ -155,19 +176,30 @@ async def generate_tutor_message(state: TutorState) -> TutorState:
     if phase == "DISCUSSION":
         prompt = discussion_prompt
         params = {
-            "student_background": state["student"]["background"],
+            "student_background": state["student"].get("background", ""),
             "curriculum": state["curriculum"],
             "current_milestone": current_milestone,
-            "completed_milestones": state["milestones_completed"],
-            "remaining_milestones": state["milestones_remaining"],
-            "identified_milestones": state["milestones_identified"],
-            "input": state["current_input"], #change this to last 5 messages
+            "completed_milestones": state.get("milestones_completed", []),
+            "remaining_milestones": state.get("milestones_remaining", []),
+            "identified_milestones": state.get("milestones_identified", []),
+            "milestone_feedback": state.get("milestone_feedback", ""),
+            "current_phase": state.get("current_phase", ""),
+            "just_completed_milestone": state.get("just_completed_milestone", None),
+            "history": state.get("messages", [])[-5:],
+            "input": state["current_input"],
         }
     elif phase == "CODING":
         prompt = coding_prompt
         params = {
             "curriculum": state["curriculum"],
             "current_milestone": current_milestone,
+            "completed_milestones": state.get("milestones_completed", []),
+            "remaining_milestones": state.get("milestones_remaining", []),
+            "identified_milestones": state.get("milestones_identified", []),
+            "milestone_feedback": state.get("milestone_feedback", ""),
+            "current_phase": state.get("current_phase", ""),
+            "just_completed_milestone": state.get("just_completed_milestone", None),
+            "history": state.get("messages", [])[-5:],
             "input": state["current_input"],
         }
     else:
@@ -183,6 +215,11 @@ async def generate_tutor_message(state: TutorState) -> TutorState:
 
     # Prepend congratulatory message if a milestone was just completed
     new_state = state.copy()
+    # Show milestone feedback if present and milestone is not completed
+    if state.get('milestone_feedback') and state.get('current_milestone') and state.get('current_milestone') not in state.get('milestones_completed', []):
+        response_content = (
+            f"⚠️ Feedback on your last submission:\n{state['milestone_feedback']}\n\n" + response_content
+        )
     if state.get('just_completed_milestone'):
         completed_milestone = state['just_completed_milestone']
         validation_message = (

@@ -32,7 +32,7 @@ def create_tictactoe_curriculum() -> CurriculumConfig:
                 "id": "m3",
                 "name": "Win Condition Implementation",
                 "description": "Code the win condition checks. The game should check if the player has won by getting three in a row, column, or diagonal.",
-                "prerequisites": ["m1, m2"],
+                "prerequisites": ["m1", "m2"],
             },
             {
                 "id": "m4",
