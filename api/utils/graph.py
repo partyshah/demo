@@ -1,247 +1,228 @@
-from langgraph.config import get_stream_writer 
 from langgraph.graph import StateGraph, END
-from langchain_core.messages import AIMessage
-from typing import Dict, Any
 
 from .state import TutorState
 from .llm import llm
-from .output_parser import extraction_parser
-from .prompt import (
-    extraction_prompt, 
-    discussion_prompt, 
-    coding_prompt,
-    router_prompt
-)
-from .output_parser import (
-    router_parser,
-    extraction_parser,
-)
+from .output_parser import tutoring_parser
+from .prompt import unified_tutoring_prompt
 
-# Graph Nodes
-async def process_student_message(state: TutorState) -> TutorState:
-    """Extract information from student message to update state and handle milestone progression."""
-    writer = get_stream_writer() # TODO: remove this
-    writer({"status": "Processing student message..."})
+def log(message: str) -> None:
+    """Log with immediate flush for real-time output"""
+    print(message, flush=True)
+
+async def process_message(state: TutorState) -> TutorState:
+    """Process student message with simplified Socratic tutoring."""
+    session_id = state.get("session_id", "unknown")
+    log(f"\n[SESSION {session_id}] === PROCESSING MESSAGE ===")
+    log(f"[INPUT] Message: {state['current_input'][:100]}{'...' if len(state['current_input']) > 100 else ''}")
+    log(f"[STATE IN] Current milestone: {state.get('current_milestone')}")
+    log(f"[STATE IN] Completed milestones: {state.get('milestones_completed', [])}")
     
-    message = state["current_input"]
+    try:
+        message = state["current_input"]
+        updated_messages = state["messages"] + [{"role": "user", "content": message}]
         
-    chain = extraction_prompt | llm | extraction_parser
-    response = chain.invoke(
-        {
+        # Strict forward-only milestone management
+        all_milestone_ids = [m['id'] for m in state['curriculum']['milestones']]
+        completed = set(state.get('milestones_completed', []))
+        current_milestone = state.get('current_milestone')
+        
+        log(f"[MILESTONE GUARD] All milestones: {all_milestone_ids}")
+        log(f"[MILESTONE GUARD] Previously completed: {list(completed)}")
+        log(f"[MILESTONE GUARD] Current milestone: {current_milestone}")
+        
+        # GUARD: Ensure completed milestones are never lost or reduced
+        if len(completed) > len(state.get('milestones_completed', [])):
+            log(f"[MILESTONE GUARD] WARNING: Completed milestones increased unexpectedly")
+        
+        # GUARD: Find current milestone if none set - use curriculum order ONLY
+        if not current_milestone:
+            for milestone_id in all_milestone_ids:
+                if milestone_id not in completed:
+                    current_milestone = milestone_id
+                    log(f"[MILESTONE GUARD] Bootstrap to first incomplete: {current_milestone}")
+                    break
+        
+        # GUARD: Prevent working on completed milestones
+        if current_milestone and current_milestone in completed:
+            log(f"[MILESTONE GUARD] BLOCKING: Attempted to work on completed milestone {current_milestone}")
+            # Find next incomplete milestone
+            for milestone_id in all_milestone_ids:
+                if milestone_id not in completed:
+                    current_milestone = milestone_id
+                    log(f"[MILESTONE GUARD] Redirected to next incomplete: {current_milestone}")
+                    break
+        
+        # Available milestones (not yet completed, in order)
+        available_milestones = [m for m in all_milestone_ids if m not in completed]
+        log(f"[MILESTONE GUARD] Available milestones: {available_milestones}")
+        
+        # PRE-ASSESSMENT: Check if student might be completing the current milestone
+        # This helps us determine the correct state to pass to the LLM
+        
+        # Single LLM call for Socratic tutoring + assessment
+        log(f"[LLM CALL] Starting unified tutoring response...")
+        chain = unified_tutoring_prompt | llm | tutoring_parser
+        response = chain.invoke({
+            "student_background": state["student"]["background"],
             "curriculum": state["curriculum"],
-            "input": state["messages"][-5:] + [{"role": "user", "content": message}],
-            "format_instructions": extraction_parser.get_format_instructions(),
-        }
-    )
-    print(f"LLM API CALL: {response=}")
-
-    # --- Milestone progression logic ---
-    all_milestone_ids = [m['id'] for m in state['curriculum']['milestones']]
-    completed = set(state.get('milestones_completed', []))
-    current_milestone = state.get('current_milestone')
-
-    # Bootstrap: If state has no current milestone, but LLM extraction does, set it
-    if (not current_milestone or current_milestone == 'None'):
-        llm_milestone = response.get('current_milestone')
-        if llm_milestone and llm_milestone != 'None':
-            current_milestone = llm_milestone
-
-    # Debug: Print current milestone from state and LLM extraction
-    print(f"[DEBUG] State current_milestone: {current_milestone}, LLM current_milestone: {response.get('current_milestone')}, milestone_completed: {response.get('milestone_completed')}")
-
-    # Only use LLM to check if the current milestone is complete
-    just_completed = None
-    if response.get('milestone_completed', False) and current_milestone and current_milestone != 'None':
-        if current_milestone not in completed:
-            completed.add(current_milestone)
-            just_completed = current_milestone
-
-    # Always update milestones_completed in curriculum order
-    milestones_completed = [m for m in all_milestone_ids if m in completed]
-    # Always update remaining milestones
-    remaining = [m for m in all_milestone_ids if m not in completed]
-
-    # Find the next milestone to work on (in curriculum order)
-    next_milestone = None
-    for milestone_id in remaining:
-        milestone = next(m for m in state['curriculum']['milestones'] if m['id'] == milestone_id)
-        if all(prereq in completed for prereq in milestone['prerequisites']):
-            next_milestone = milestone_id
-            break
-
-    # Guard: Never regress to a completed milestone
-    if next_milestone in completed:
-        next_milestone = None
-
-    # If all milestones are completed
-    if response.get('milestone_completed', False) and not next_milestone:
-        print("[DEBUG] All milestones completed. No further prompts.")
-        new_state = {
+            "current_milestone": current_milestone,
+            "milestones_completed": list(completed),
+            "available_milestones": available_milestones,
+            "history": updated_messages[-5:],
+            "input": message,
+        })
+        log(f"[LLM RESPONSE] Response: {response}")
+        
+        # STRICT milestone completion logic - only allow completion of current milestone
+        new_completed = completed.copy()  # Never lose completed milestones
+        just_completed = False
+        
+        # SIMPLE EXPLICIT MILESTONE COMPLETION - no complex parsing needed
+        completed_milestone_id = response.get('milestone_completed', 'none')
+        log(f"[COMPLETION GUARD] LLM returned milestone_completed: '{completed_milestone_id}'")
+        log(f"[COMPLETION GUARD] Current milestone: {current_milestone}")
+        log(f"[COMPLETION GUARD] Already completed: {current_milestone in completed if current_milestone else 'N/A'}")
+        
+        # ONLY allow completion if LLM explicitly returns the current milestone ID
+        completion_allowed = (completed_milestone_id == current_milestone and 
+                            current_milestone and 
+                            current_milestone not in completed and
+                            current_milestone in all_milestone_ids)
+        
+        log(f"[COMPLETION DECISION] Explicit milestone ID match: {completed_milestone_id == current_milestone}")
+        log(f"[COMPLETION DECISION] Current milestone exists: {bool(current_milestone)}")
+        log(f"[COMPLETION DECISION] Not already completed: {current_milestone not in completed if current_milestone else False}")
+        log(f"[COMPLETION DECISION] Valid milestone ID: {current_milestone in all_milestone_ids if current_milestone else False}")
+        log(f"[COMPLETION DECISION] Final allowed: {completion_allowed}")
+        
+        if completion_allowed:
+            new_completed.add(current_milestone)
+            just_completed = True
+            log(f"[COMPLETION GUARD] ✅ APPROVED completion of: {current_milestone}")
+        else:
+            reasons = []
+            if completed_milestone_id == 'none':
+                reasons.append("LLM returned 'none' - no completion")
+            elif completed_milestone_id != current_milestone:
+                reasons.append(f"LLM returned '{completed_milestone_id}' but current is '{current_milestone}'")
+            if not current_milestone:
+                reasons.append("no current milestone set")
+            if current_milestone and current_milestone in completed:
+                reasons.append("milestone already completed")
+            if current_milestone and current_milestone not in all_milestone_ids:
+                reasons.append("invalid milestone ID")
+            
+            reason = ", ".join(reasons) if reasons else "unknown reason"
+            log(f"[COMPLETION GUARD] ❌ REJECTED completion ({reason})")
+        
+        # STRICT forward progression - only advance if milestone was just completed
+        next_milestone = current_milestone  # Default: stay on current
+        
+        if just_completed:
+            log(f"[PROGRESSION GUARD] Finding next milestone after completing {current_milestone}")
+            current_index = all_milestone_ids.index(current_milestone)
+            
+            # Look for next milestone in strict curriculum order
+            for i in range(current_index + 1, len(all_milestone_ids)):
+                next_id = all_milestone_ids[i]
+                if next_id not in new_completed:
+                    next_milestone = next_id
+                    log(f"[PROGRESSION GUARD] ✅ Advancing to next milestone: {next_milestone}")
+                    break
+            else:
+                # All milestones completed
+                next_milestone = None
+                log(f"[PROGRESSION GUARD] 🎉 ALL MILESTONES COMPLETED!")
+        else:
+            log(f"[PROGRESSION GUARD] Staying on current milestone: {current_milestone}")
+        
+        # GUARD: Final validation - never go backwards
+        if next_milestone and next_milestone in new_completed:
+            log(f"[PROGRESSION GUARD] BLOCKING: Attempted backwards movement to {next_milestone}")
+            next_milestone = current_milestone
+        
+        # SPECIAL HANDLING: If all milestones are complete, generate celebration response
+        if next_milestone is None and len(new_completed) == len(all_milestone_ids):
+            log(f"[FINAL MILESTONE] All milestones completed! Generating celebration response...")
+            celebration_response = "🎉🎉🎉 CONGRATULATIONS! 🎉🎉🎉\n\nYou have successfully completed ALL milestones for the Tic-Tac-Toe project! You've built:\n\n✅ Board Implementation\n✅ Player Input\n✅ Win Condition Implementation\n✅ Game Loop\n\nYour tic-tac-toe game is now complete and fully functional! You should be proud of your accomplishment. You've demonstrated strong programming skills and problem-solving abilities throughout this project.\n\nFeel free to enhance your game further by adding features like:\n- Better user interface\n- Computer AI opponent\n- Score tracking\n- Different board sizes\n\nGreat job! 🎉"
+            
+            # Build final state for completed project
+            final_state = {
+                **state,
+                "messages": updated_messages + [{"role": "assistant", "content": celebration_response}],
+                "current_milestone": None,  # No more milestones
+                "milestones_completed": sorted(list(new_completed), key=lambda x: all_milestone_ids.index(x)),
+            }
+            
+            log(f"[FINAL MILESTONE] Project complete! All {len(new_completed)} milestones done.")
+            log(f"[SESSION {session_id}] === PROJECT COMPLETED ===\n")
+            
+            return final_state
+        
+        # Build response with congratulations if milestone was just completed
+        response_content = response['message']
+        if just_completed:
+            congratulations = f"🎉 Great job! You've completed milestone: {current_milestone}!\n\n"
+            response_content = congratulations + response_content
+            log(f"[MESSAGE] Added congratulations for {current_milestone}")
+        
+        # Final state with protected milestone values
+        final_milestones_completed = sorted(list(new_completed), key=lambda x: all_milestone_ids.index(x))
+        final_state = {
             **state,
-            "messages": state["messages"] + [{"role": "user", "content": message}],
-            "milestones_identified": response['milestones_identified'],
-            "current_milestone": None,
-            "milestone_feedback": response.get('milestone_feedback', ""),
-            "just_completed_milestone": just_completed,
-            "milestones_completed": milestones_completed,
-            "milestones_remaining": [],
-            "current_phase": 'DISCUSSION',
+            "messages": updated_messages + [{"role": "assistant", "content": response_content}],
+            "current_milestone": next_milestone,
+            "milestones_completed": final_milestones_completed,
         }
-        return new_state
-
-    new_state = {
-        **state,
-        "messages": state["messages"] + [{"role": "user", "content": message}],
-        "milestones_identified": response['milestones_identified'],
-        "current_milestone": next_milestone if just_completed else current_milestone,
-        "milestone_feedback": response.get('milestone_feedback', ""),
-        "just_completed_milestone": just_completed,
-        "milestones_completed": milestones_completed,
-        "milestones_remaining": remaining,
-    }
-    # Always reset phase to DISCUSSION for new milestone
-    if just_completed and next_milestone:
-        print(f"[DEBUG] Advancing to next milestone: {next_milestone}, resetting phase to DISCUSSION.")
-        new_state['current_phase'] = 'DISCUSSION'
-
-    print(f"[DEBUG] State after processing: milestone={new_state['current_milestone']}, phase={new_state.get('current_phase')}, completed={new_state.get('milestones_completed')}")
-    return new_state
-
-async def router(state: TutorState) -> Dict[str, Any]:
-    """Determine whether to continue current phase or transition."""
-    writer = get_stream_writer()
-    writer({"status": "Determining teaching phase..."})
-    
-    chain = router_prompt | llm | router_parser
-    response = chain.invoke(
-        {
-            "curriculum": state["curriculum"],
-            "current_milestone": state["current_milestone"] if state["current_milestone"] else "None",
-            'current_phase': state['current_phase'],
-            "input": state["messages"],
-            "format_instructions": router_parser.get_format_instructions(),
-        }
-    )
-    print(f"LLM API CALL: {response=}")
         
-    if state['current_phase'] != response.phase:
-        return "phase_transition"
-    else:
-        return "continue_current_phase"
-
-async def phase_transition(state: TutorState) -> TutorState:
-    """Handle transition to a new teaching phase."""
-    writer = get_stream_writer()
-    writer({"status": f"Transitioning to {state['current_phase']} phase..."})
-    
-    new_state = state.copy()
-    
-    if state['current_phase'] == "DISCUSSION":
-        new_state['current_phase'] = "CODING"
-    elif state['current_phase'] == "CODING":
-        new_state['current_phase'] = "DISCUSSION"
-    else:
-        raise ValueError(f"Invalid phase: {state['current_phase']}")
-    
-    return new_state
-
-async def continue_current_phase(state: TutorState) -> TutorState:
-    """Continue with the current teaching phase."""
-    writer = get_stream_writer()
-    writer(f"LLM API CALL: Continuing {state['current_phase']} phase")
-    return state
-
-async def generate_tutor_message(state: TutorState) -> TutorState:
-    """Generate a tutor response based on the current phase, with streaming."""
-    writer = get_stream_writer()
-    writer({"status": "Generating tutor response..."})
-
-    # Debug log to confirm state before prompt generation
-    print(f"[DEBUG] Generating tutor message for milestone={state['current_milestone']}, phase={state['current_phase']}, completed={state.get('milestones_completed')}")
-    
-    phase = state['current_phase']
-    current_milestone = state["current_milestone"]
-
-    prompt = None
-    if phase == "DISCUSSION":
-        prompt = discussion_prompt
-        params = {
-            "student_background": state["student"].get("background", ""),
-            "curriculum": state["curriculum"],
-            "current_milestone": current_milestone,
-            "completed_milestones": state.get("milestones_completed", []),
-            "remaining_milestones": state.get("milestones_remaining", []),
-            "identified_milestones": state.get("milestones_identified", []),
-            "milestone_feedback": state.get("milestone_feedback", ""),
-            "current_phase": state.get("current_phase", ""),
-            "just_completed_milestone": state.get("just_completed_milestone", None),
-            "history": state.get("messages", [])[-5:],
-            "input": state["current_input"],
+        # FINAL GUARD: Log state transition for verification
+        log(f"[STATE GUARD] BEFORE: milestone={state.get('current_milestone')}, completed={state.get('milestones_completed', [])}")
+        log(f"[STATE GUARD] AFTER:  milestone={final_state['current_milestone']}, completed={final_state['milestones_completed']}")
+        
+        # FINAL GUARD: Verify no backwards movement
+        if len(final_state['milestones_completed']) < len(state.get('milestones_completed', [])):
+            log(f"[STATE GUARD] 🚨 CRITICAL ERROR: Completed milestones decreased!")
+            # Restore previous completed milestones
+            final_state['milestones_completed'] = state.get('milestones_completed', [])
+        
+        if (final_state['current_milestone'] and 
+            final_state['current_milestone'] in final_state['milestones_completed']):
+            log(f"[STATE GUARD] 🚨 CRITICAL ERROR: Current milestone is completed!")
+            # Find next incomplete milestone
+            for milestone_id in all_milestone_ids:
+                if milestone_id not in final_state['milestones_completed']:
+                    final_state['current_milestone'] = milestone_id
+                    log(f"[STATE GUARD] EMERGENCY CORRECTION: Set to {milestone_id}")
+                    break
+        
+        log(f"[STATE OUT] Current milestone: {final_state['current_milestone']}")
+        log(f"[STATE OUT] Completed milestones: {final_state['milestones_completed']}")
+        log(f"[SESSION {session_id}] === PROCESSING COMPLETE ===\n")
+        
+        return final_state
+        
+    except Exception as e:
+        log(f"[ERROR] Exception: {str(e)}")
+        import traceback
+        log(f"[ERROR] Traceback: {traceback.format_exc()}")
+        
+        error_message = "I apologize, but I encountered an error. Please try again."
+        return {
+            **state,
+            "messages": state["messages"] + [
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": error_message}
+            ]
         }
-    elif phase == "CODING":
-        prompt = coding_prompt
-        params = {
-            "curriculum": state["curriculum"],
-            "current_milestone": current_milestone,
-            "completed_milestones": state.get("milestones_completed", []),
-            "remaining_milestones": state.get("milestones_remaining", []),
-            "identified_milestones": state.get("milestones_identified", []),
-            "milestone_feedback": state.get("milestone_feedback", ""),
-            "current_phase": state.get("current_phase", ""),
-            "just_completed_milestone": state.get("just_completed_milestone", None),
-            "history": state.get("messages", [])[-5:],
-            "input": state["current_input"],
-        }
-    else:
-        raise ValueError(f"Invalid phase: {phase}")
-    
-    prompt_messages = prompt.format_messages(**params)
-    
-    response_content = ""
-    async for chunk in llm.astream(prompt_messages):
-        if chunk.content:
-            response_content += chunk.content
-            writer({"response_chunk": chunk.content})
-
-    # Prepend congratulatory message if a milestone was just completed
-    new_state = state.copy()
-    # Show milestone feedback if present and milestone is not completed
-    if state.get('milestone_feedback') and state.get('current_milestone') and state.get('current_milestone') not in state.get('milestones_completed', []):
-        response_content = (
-            f"⚠️ Feedback on your last submission:\n{state['milestone_feedback']}\n\n" + response_content
-        )
-    if state.get('just_completed_milestone'):
-        completed_milestone = state['just_completed_milestone']
-        validation_message = (
-            f"🎉 Great job! You've successfully completed the milestone: {completed_milestone}. "
-            "Your code meets the requirements. Let's move on to the next part!\n\n"
-        )
-        response_content = validation_message + response_content
-        new_state['just_completed_milestone'] = None
-
-    new_state["response"] = response_content
-    new_state["messages"] = state["messages"] + [AIMessage(content=response_content)]
-    
-    return new_state
 
 
 # Graph Construction
 def build_graph():
+    """Build simplified LangGraph with single processing node."""
     workflow = StateGraph(TutorState)
     
-    workflow.add_node("process_student_message", process_student_message)
-    workflow.add_node("phase_transition", phase_transition)
-    workflow.add_node("continue_current_phase", continue_current_phase)
-    workflow.add_node("generate_tutor_message", generate_tutor_message)
-    
-    workflow.add_conditional_edges(
-        "process_student_message",
-        router
-    )
-    workflow.add_edge("phase_transition", "generate_tutor_message")
-    workflow.add_edge("continue_current_phase", "generate_tutor_message")
-    workflow.add_edge("generate_tutor_message", END)
-
-    workflow.set_entry_point("process_student_message")
+    workflow.add_node("process_message", process_message)
+    workflow.add_edge("process_message", END)
+    workflow.set_entry_point("process_message")
     
     return workflow.compile()

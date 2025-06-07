@@ -29,7 +29,8 @@ export function Chat() {
   } = useChat({
     maxSteps: 4,
     body: {
-      sessionId: sessionId
+      sessionId: sessionId,
+      session_id: sessionId  // Try both formats
     },
     onError: (error) => {
       if (error.message.includes("Too many requests")) {
