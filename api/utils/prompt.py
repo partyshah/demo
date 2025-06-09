@@ -40,11 +40,17 @@ unified_tutoring_prompt = ChatPromptTemplate.from_messages(
 You must respond with valid JSON in this exact format:
 ```json
 {{
-  "message": "Your conversational response to the student using Socratic method",
+  "message": "Your conversational response to the student using Socratic method. Use \\n for line breaks.",
   "milestone_completed": "MILESTONE_ID or none",
   "feedback": "Brief assessment of their progress or what's missing"
 }}
 ```
+
+IMPORTANT: For the message field:
+- Use \\n for line breaks instead of actual newlines
+- Keep all text on a single line
+- Escape any quotes with backslashes
+- Do not include any actual newlines in the JSON
 
 **CRITICAL: milestone_completed field rules:**
 - If the student completed milestone m1, use: "milestone_completed": "m1"
